@@ -7,21 +7,13 @@
 #include <map>
 using namespace std;
 
-struct Post
-{
-    string content;
-    set<string> words;
-    string label;
-};
-
 class Classifier
 {
 private:
-    bool training_phase;
     int total_training_posts;
     set<string> vocabulary_set;
-    // A map with key as label and posts vector as value
-    map<string, vector<Post>> label_map;
+    // A map with key as label and number of posts as value
+    map<string, int> label_map;
     // A map with label as key and the sets of words that occurs in the label as value
     map<string, set<string>> label_words_map;
     map<string, map<string, int>> word_count_map;
@@ -42,64 +34,38 @@ private:
     }
 
     // Returns the number of training posts with label that contain word
-    int find_num_posts_label_and_word(const string &word, const string &label, bool training_phase = true)
+    int find_num_posts_label_and_word(const string &word, const string &label)
     {
-
-        if (!training_phase)
+        auto it1 = word_count_map.find(word);
+        if (it1 != word_count_map.end())
         {
-            auto it1 = word_count_map.find(word);
-            if (it1 != word_count_map.end())
+            auto it2 = word_count_map[word].find(label);
+            if (it2 != word_count_map[word].end())
             {
-                auto it2 = word_count_map[word].find(label);
-                if (it2 != word_count_map[word].end())
-                {
-                    return word_count_map[word][label]; 
-                }
-                else
-                {
-                    return 0; 
-                }
+                return word_count_map[word][label]; 
             }
+        
         }
 
-        int total = 0;
-        for (size_t i = 0; i < label_map[label].size(); ++i)
-        {
-            const auto &post_word_set = label_map[label][i].words;
-            auto it = post_word_set.find(word);
-            if (it != post_word_set.end())
-            {
-                total += 1;
-            }
-        }
-
-        return total;
+        return 0; 
     }
 
     // Find the total number of training posts that contain the word
     int find_num_posts_with_word(const string &word)
-    {
-        int total = 0;
-        // Go through each key value pair in the map,
-        // The key is the label name, the value is the vector of posts
-        for (const auto &key_value_pair : label_map)
+    {   
+
+        int total = 0; 
+        auto it1 = word_count_map.find(word);
+        if (it1 != word_count_map.end())
         {
-            // Set reference variable to the posts vector
-            const auto &posts_vector = key_value_pair.second;
-            for (size_t i = 0; i < posts_vector.size(); ++i)
+            for (auto& key_value_pair : word_count_map[word])
             {
-                // Set reference variable to the words_set of a post
-                const auto &post_word_set = posts_vector[i].words;
-                // Look for the word in that set and update the total
-                auto it = post_word_set.find(word);
-                if (it != post_word_set.end())
-                {
-                    total += 1;
-                }
+                total += word_count_map[word][key_value_pair.first]; 
             }
+                
         }
 
-        return total;
+        return total; 
     }
 
     // Calculate the log-likelihood probability of a word given label
@@ -108,7 +74,7 @@ private:
         int numerator = find_num_posts_label_and_word(word, label);
         if (numerator != 0)
         {
-            return log(static_cast<double>(numerator) / label_map[label].size());
+            return log(static_cast<double>(numerator) / label_map[label]);
         }
 
         numerator = find_num_posts_with_word(word);
@@ -123,7 +89,7 @@ private:
     // The log-prior probability of label and is a reflection of how common it is.
     double label_probability(const string &label)
     {
-        return log(static_cast<double>(label_map[label].size()) / total_training_posts);
+        return log(static_cast<double>(label_map[label]) / total_training_posts);
     }
 
     // This calculates the log probability of a post given a label
@@ -179,7 +145,7 @@ public:
         for (auto &key_value_pair : label_map)
         {
             cout << "  " << key_value_pair.first << ", ";
-            cout << key_value_pair.second.size() << " examples, ";
+            cout << key_value_pair.second << " examples, ";
             cout << "log-prior = " << label_probability(key_value_pair.first) << endl;
         }
 
@@ -224,8 +190,6 @@ public:
                 if (curr_char == ' ')
                 {
                     words_in_post.push_back(curr_word);
-                    vocabulary_set.insert(curr_word);
-                    label_words_map[label].insert(curr_word);
                     curr_word = "";
                 }
                 else
@@ -310,11 +274,12 @@ public:
 
             // Create the set of words
             set<string> word_set = create_word_set(words_in_post);
-
-            Post p = {content, word_set, label};
-
-            // This automatically creates a p.label key if doesnt exist yet
-            label_map[p.label].push_back(p);
+            for (const string &word : word_set)
+            {
+                word_count_map[word][label] += 1;
+            }
+           
+            label_map[label] += 1; 
             total_training_posts += 1;
         }
 
