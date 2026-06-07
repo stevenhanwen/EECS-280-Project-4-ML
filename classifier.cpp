@@ -17,12 +17,14 @@ struct Post
 class Classifier
 {
 private:
+    bool training_phase;
     int total_training_posts;
     set<string> vocabulary_set;
     // A map with key as label and posts vector as value
     map<string, vector<Post>> label_map;
-    // A map with key as label and the sets of words that occurs in the label as value
+    // A map with label as key and the sets of words that occurs in the label as value
     map<string, set<string>> label_words_map;
+    map<string, map<string, int>> word_count_map;
 
     // Create a non duplicate set of words from a vector of words
     set<string> create_word_set(const vector<string> &words)
@@ -40,8 +42,26 @@ private:
     }
 
     // Returns the number of training posts with label that contain word
-    int find_num_posts_label_and_word(string word, string label)
+    int find_num_posts_label_and_word(const string &word, const string &label, bool training_phase = true)
     {
+
+        if (!training_phase)
+        {
+            auto it1 = word_count_map.find(word);
+            if (it1 != word_count_map.end())
+            {
+                auto it2 = word_count_map[word].find(label);
+                if (it2 != word_count_map[word].end())
+                {
+                    return word_count_map[word][label]; 
+                }
+                else
+                {
+                    return 0; 
+                }
+            }
+        }
+
         int total = 0;
         for (size_t i = 0; i < label_map[label].size(); ++i)
         {
@@ -57,7 +77,7 @@ private:
     }
 
     // Find the total number of training posts that contain the word
-    int find_num_posts_with_word(string word)
+    int find_num_posts_with_word(const string &word)
     {
         int total = 0;
         // Go through each key value pair in the map,
@@ -83,7 +103,7 @@ private:
     }
 
     // Calculate the log-likelihood probability of a word given label
-    double log_probability_word_given_label(string word, string label)
+    double log_probability_word_given_label(const string &word, const string &label)
     {
         int numerator = find_num_posts_label_and_word(word, label);
         if (numerator != 0)
@@ -101,14 +121,15 @@ private:
     }
 
     // The log-prior probability of label and is a reflection of how common it is.
-    double label_probability(string label)
+    double label_probability(const string &label)
     {
         return log(static_cast<double>(label_map[label].size()) / total_training_posts);
     }
 
     // This calculates the log probability of a post given a label
     // Takes in the set of words of the post
-    double log_probability_post_given_label(set<string> word_set, string label)
+    double log_probability_post_given_label(const set<string> &word_set,
+                                            const string &label)
     {
         double total_probability = label_probability(label);
         for (auto &word : word_set)
@@ -119,15 +140,31 @@ private:
         return total_probability;
     }
 
-    pair<string, double> predict_label(set<string> word_set)
-    {   
+    // Return the predicted label for a set of words and its probability value
+    pair<string, double> predict_label(const set<string> &word_set)
+    {
         pair<string, double> prediction_pair;
-        for (auto& key_value_pair : label_map)
+        map<string, double> label_probabilities;
+        for (auto &key_value_pair : label_map)
         {
-            string label = key_value_pair.first; 
-            double probability = log_probability_post_given_label(word_set, label); 
-            
+            string label = key_value_pair.first;
+            double probability = log_probability_post_given_label(word_set, label);
+            label_probabilities[label] = probability;
         }
+
+        prediction_pair.first = label_probabilities.begin()->first;
+        prediction_pair.second = label_probabilities.begin()->second;
+        for (auto &key_value_pair : label_probabilities)
+        {
+            string label = key_value_pair.first;
+            if (label_probabilities[label] > prediction_pair.second)
+            {
+                prediction_pair.first = label;
+                prediction_pair.second = label_probabilities[label];
+            }
+        }
+
+        return prediction_pair;
     }
 
 public:
@@ -164,14 +201,16 @@ public:
 
     void make_predictions(csvstream &test_csv_in)
     {
-        cout << "trained on " << total_training_posts << " examples" << endl; 
-        cout << endl; 
+        cout << "trained on " << total_training_posts << " examples" << endl;
+        cout << endl;
 
+        int total_posts = 0;
+        int predicted_correctly = 0;
         // Rows have key = column name, value = cell datum
         map<string, string> row;
-        cout << "test data:" << endl; 
+        cout << "test data:" << endl;
         while (test_csv_in >> row)
-        {   
+        {
             // Get label and update num training posts with that label;
             string label = row["tag"];
             string content = row["content"];
@@ -195,21 +234,30 @@ public:
                 }
             }
             // Need to add the last word
-            words_in_post.push_back(curr_word);
-            vocabulary_set.insert(curr_word);
-            label_words_map[label].insert(curr_word);
+            if (curr_word != "")
+            {
+                words_in_post.push_back(curr_word);
+            }
 
             // Create the set of words
             set<string> word_set = create_word_set(words_in_post);
 
+            pair<string, double> prediction_pair = predict_label(word_set);
 
+            cout << "  correct = " << label << ", predicted = " << prediction_pair.first;
+            cout << ", log-probability score = " << prediction_pair.second << endl;
+            cout << "  content = " << content << endl;
+            cout << endl;
 
-            Post p = {content, word_set, label};
-
-            // This automatically creates a p.label key if doesnt exist yet
-            label_map[p.label].push_back(p);
-            total_training_posts += 1;
+            total_posts += 1;
+            if (label == prediction_pair.first)
+            {
+                predicted_correctly += 1;
+            }
         }
+
+        cout << "performance: " << predicted_correctly << " / " << total_posts;
+        cout << " posts predicted correctly" << endl;
     }
 
     Classifier(csvstream &train_csv_in, bool exists_test_file)
@@ -253,9 +301,12 @@ public:
                 }
             }
             // Need to add the last word
-            words_in_post.push_back(curr_word);
-            vocabulary_set.insert(curr_word);
-            label_words_map[label].insert(curr_word);
+            if (curr_word != "")
+            {
+                words_in_post.push_back(curr_word);
+                vocabulary_set.insert(curr_word);
+                label_words_map[label].insert(curr_word);
+            }
 
             // Create the set of words
             set<string> word_set = create_word_set(words_in_post);
@@ -313,14 +364,12 @@ int main(int argc, char *argv[])
         {
             csvstream csvtest(test_file_name);
             classifier.make_predictions(csvtest);
-
         }
         catch (const csvstream_exception &e)
         {
             cerr << e.what() << "\n";
             return 1;
         }
-
     }
     catch (const csvstream_exception &e)
     {
