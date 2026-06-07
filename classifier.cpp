@@ -12,21 +12,34 @@ class Classifier
 private:
     int total_training_posts;
 
-    // Use this set to keep track of the unique words that appear during training. 
+    // Use this set to keep track of the unique words that appear during training.
     set<string> vocabulary_set;
 
     // A map with key as label and number of posts as value
     map<string, int> label_map;
 
     // A map with label as key and the sets of words that occurs in the label as value
-    // This is used for the printed statements if the classifier is only trained. 
+    // This is used for the printed statements if the classifier is only trained.
     map<string, set<string>> label_words_map;
 
-    // This map is used for finding the number of times 
+    // This map is used for finding the number of times
     // a word appears in posts for a particular label.
-    // The key is the word and the value is another map with label as key 
-    // and number of appearences of the word as value. 
+    // The key is the word and the value is another map with label as key
+    // and number of appearences of the word as value.
     map<string, map<string, int>> word_count_map;
+
+    // EFFECTS: Return a set of unique whitespace delimited words
+    set<string> unique_words(const string &str)
+    {
+        istringstream source(str);
+        set<string> words;
+        string word;
+        while (source >> word)
+        {
+            words.insert(word);
+        }
+        return words;
+    }
 
     // Create a non duplicate set of words from a vector of words
     set<string> create_word_set(const vector<string> &words)
@@ -45,43 +58,41 @@ private:
 
     // Returns the number of training posts with label that contain word
     int find_num_posts_label_and_word(const string &word, const string &label)
-    {   
+    {
         // Use an iterator to find the word in the map
         auto it1 = word_count_map.find(word);
         if (it1 != word_count_map.end())
-        {   
+        {
             // Use another iterator to find a label for the word
             auto it2 = word_count_map[word].find(label);
             if (it2 != word_count_map[word].end())
             {
-                return word_count_map[word][label]; 
+                return word_count_map[word][label];
             }
-        
         }
 
-        // If either is not found, then return 0 posts with that word given a label. 
-        return 0; 
+        // If either is not found, then return 0 posts with that word given a label.
+        return 0;
     }
 
     // Find the total number of training posts that contain the word
     int find_num_posts_with_word(const string &word)
-    {   
+    {
 
-        int total = 0; 
+        int total = 0;
         // Use an iterator to find the word in the map
         auto it1 = word_count_map.find(word);
         if (it1 != word_count_map.end())
-        {   
+        {
 
-            // Go through every label and sum the number of posts that has that word. 
-            for (auto& key_value_pair : word_count_map[word])
+            // Go through every label and sum the number of posts that has that word.
+            for (auto &key_value_pair : word_count_map[word])
             {
-                total += word_count_map[word][key_value_pair.first]; 
+                total += word_count_map[word][key_value_pair.first];
             }
-                
         }
 
-        return total; 
+        return total;
     }
 
     // Calculate the log-likelihood probability of a word given label
@@ -127,7 +138,7 @@ private:
     {
         // First value is the predicted label, second value is the calculated probability
         pair<string, double> prediction_pair;
-        // This is the probabilities for a post given each label. 
+        // This is the probabilities for a post given each label.
         map<string, double> label_probabilities;
         for (auto &key_value_pair : label_map)
         {
@@ -200,30 +211,7 @@ public:
             string label = row["tag"];
             string content = row["content"];
 
-            // First need to create a vector of words in the content
-            vector<string> words_in_post;
-            string curr_word = "";
-            for (size_t i = 0; i < content.size(); ++i)
-            {
-                char curr_char = content.at(i);
-                if (curr_char == ' ')
-                {
-                    words_in_post.push_back(curr_word);
-                    curr_word = "";
-                }
-                else
-                {
-                    curr_word += curr_char;
-                }
-            }
-            // Need to add the last word
-            if (curr_word != "")
-            {
-                words_in_post.push_back(curr_word);
-            }
-
-            // Create the set of words
-            set<string> word_set = create_word_set(words_in_post);
+            set<string> word_set = unique_words(content); 
 
             pair<string, double> prediction_pair = predict_label(word_set);
 
@@ -265,40 +253,16 @@ public:
                 cout << "content = " << content << endl;
             }
 
-            // First need to create a vector of words in the content
-            vector<string> words_in_post;
-            string curr_word = "";
-            for (size_t i = 0; i < content.size(); ++i)
-            {
-                char curr_char = content.at(i);
-                if (curr_char == ' ')
-                {
-                    words_in_post.push_back(curr_word);
-                    vocabulary_set.insert(curr_word);
-                    label_words_map[label].insert(curr_word);
-                    curr_word = "";
-                }
-                else
-                {
-                    curr_word += curr_char;
-                }
-            }
-            // Need to add the last word
-            if (curr_word != "")
-            {
-                words_in_post.push_back(curr_word);
-                vocabulary_set.insert(curr_word);
-                label_words_map[label].insert(curr_word);
-            }
+            set<string> word_set = unique_words(content); 
 
-            // Create the set of words
-            set<string> word_set = create_word_set(words_in_post);
-            for (const string &word : word_set)
+            for (auto& word : word_set)
             {
+                vocabulary_set.insert(word);
+                label_words_map[label].insert(word);
                 word_count_map[word][label] += 1;
             }
-           
-            label_map[label] += 1; 
+
+            label_map[label] += 1;
             total_training_posts += 1;
         }
 
