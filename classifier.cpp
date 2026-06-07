@@ -11,11 +11,21 @@ class Classifier
 {
 private:
     int total_training_posts;
+
+    // Use this set to keep track of the unique words that appear during training. 
     set<string> vocabulary_set;
+
     // A map with key as label and number of posts as value
     map<string, int> label_map;
+
     // A map with label as key and the sets of words that occurs in the label as value
+    // This is used for the printed statements if the classifier is only trained. 
     map<string, set<string>> label_words_map;
+
+    // This map is used for finding the number of times 
+    // a word appears in posts for a particular label.
+    // The key is the word and the value is another map with label as key 
+    // and number of appearences of the word as value. 
     map<string, map<string, int>> word_count_map;
 
     // Create a non duplicate set of words from a vector of words
@@ -35,10 +45,12 @@ private:
 
     // Returns the number of training posts with label that contain word
     int find_num_posts_label_and_word(const string &word, const string &label)
-    {
+    {   
+        // Use an iterator to find the word in the map
         auto it1 = word_count_map.find(word);
         if (it1 != word_count_map.end())
-        {
+        {   
+            // Use another iterator to find a label for the word
             auto it2 = word_count_map[word].find(label);
             if (it2 != word_count_map[word].end())
             {
@@ -47,6 +59,7 @@ private:
         
         }
 
+        // If either is not found, then return 0 posts with that word given a label. 
         return 0; 
     }
 
@@ -55,9 +68,12 @@ private:
     {   
 
         int total = 0; 
+        // Use an iterator to find the word in the map
         auto it1 = word_count_map.find(word);
         if (it1 != word_count_map.end())
-        {
+        {   
+
+            // Go through every label and sum the number of posts that has that word. 
             for (auto& key_value_pair : word_count_map[word])
             {
                 total += word_count_map[word][key_value_pair.first]; 
@@ -109,7 +125,9 @@ private:
     // Return the predicted label for a set of words and its probability value
     pair<string, double> predict_label(const set<string> &word_set)
     {
+        // First value is the predicted label, second value is the calculated probability
         pair<string, double> prediction_pair;
+        // This is the probabilities for a post given each label. 
         map<string, double> label_probabilities;
         for (auto &key_value_pair : label_map)
         {
@@ -118,6 +136,7 @@ private:
             label_probabilities[label] = probability;
         }
 
+        // Use a for loop to find the highest probability calculated
         prediction_pair.first = label_probabilities.begin()->first;
         prediction_pair.second = label_probabilities.begin()->second;
         for (auto &key_value_pair : label_probabilities)
