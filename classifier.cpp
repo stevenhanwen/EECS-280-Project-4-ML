@@ -1,6 +1,7 @@
 #include <cmath>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include "csvstream.hpp"
 #include <vector>
 #include <set>
@@ -78,17 +79,17 @@ private:
     // Find the total number of training posts that contain the word
     int find_num_posts_with_word(const string &word)
     {
-
         int total = 0;
         // Use an iterator to find the word in the map
-        auto it1 = word_count_map.find(word);
-        if (it1 != word_count_map.end())
+        auto it = word_count_map.find(word);
+        if (it != word_count_map.end())
         {
-
             // Go through every label and sum the number of posts that has that word.
-            for (auto &key_value_pair : word_count_map[word])
+            // it is a pointer that stores the address of the pair with a map as .second
+            // it->second would be the map with the labels. 
+            for (auto &key_value_pair : it->second)
             {
-                total += word_count_map[word][key_value_pair.first];
+                total += key_value_pair.second;
             }
         }
 
@@ -164,11 +165,6 @@ private:
     }
 
 public:
-    Classifier()
-    {
-        total_training_posts = 0;
-    }
-
     void print_training_info()
     {
         cout << "classes:" << endl;
